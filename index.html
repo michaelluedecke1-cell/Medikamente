@@ -10,7 +10,7 @@
     <meta name="theme-color" content="#f8fafc">
     
     <link rel="manifest" href="./manifest.json">
-    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="https://placehold.co/512x512/0f172a/ffffff/png?text=Medi">
 
     <title>MediPlan Pro</title>
     
@@ -22,7 +22,7 @@
             --primary: #0f172a; --accent: #2563eb; --success: #059669;
             --warning: #f59e0b; --danger: #b91c1c; --bg: #f8fafc;
         }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; padding: env(safe-area-inset-top) 10px 10px 10px; display: flex; justify-content: center; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); margin: 0; padding: env(safe-area-inset-top) 10px 10px 10px; display: flex; justify-content: center; }
         .container { width: 100%; max-width: 600px; background: white; padding: 15px; border-radius: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); box-sizing: border-box; position: relative; }
         
         .top-nav { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; }
@@ -123,6 +123,7 @@
 <script>
     let db; let meds = []; let currentFile = "";
 
+    // Datenbank Initialisierung
     const request = indexedDB.open("MediPlanDB_V_ULTRA", 1);
     request.onupgradeneeded = e => {
         db = e.target.result;
@@ -135,7 +136,6 @@
         let elem = document.documentElement;
         if (!document.fullscreenElement) {
             if (elem.requestFullscreen) { elem.requestFullscreen(); }
-            else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); }
         } else {
             if (document.exitFullscreen) { document.exitFullscreen(); }
         }
@@ -217,7 +217,7 @@
 
     function exitApp() {
         saveICE();
-        if(confirm("App beenden?")) document.body.innerHTML = "<div style='text-align:center; margin-top:50px; font-family:sans-serif;'><h1>Sicher beendet.</h1><p>Tab schließen oder Vollbild verlassen.</p></div>";
+        if(confirm("App beenden?")) document.body.innerHTML = "<div style='text-align:center; margin-top:50px; font-family:sans-serif;'><h1>Sicher beendet.</h1><p>Tab schließen oder App schließen.</p></div>";
     }
 
     function openSOS() {
@@ -299,22 +299,19 @@
         };
         reader.readAsText(event.target.files[0]);
     }
-</script>
 
-<script>
-    // Service Worker Registrierung für PWA
+    // Service Worker Registrierung
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js')
                 .then(registration => {
-                    console.log('ServiceWorker erfolgreich registriert. Scope:', registration.scope);
+                    console.log('SW registriert:', registration.scope);
                 })
-                .catch(error => {
-                    console.log('ServiceWorker Registrierung fehlgeschlagen:', error);
+                .catch(err => {
+                    console.log('SW Fehler:', err);
                 });
         });
     }
 </script>
-
 </body>
 </html>
