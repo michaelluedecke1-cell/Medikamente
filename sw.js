@@ -1,57 +1,58 @@
-const CACHE_NAME = 'mediplan-pro-v1';
+const CACHE_NAME = 'mediplan-pro-v3';
 
-// Diese Dateien laden wir beim ersten Start in den Cache
+// Liste der Dateien, die für den Offline-Betrieb gespeichert werden.
+// WICHTIG: Die Pfade müssen exakt mit deiner GitHub-URL übereinstimmen.
 const ASSETS_TO_CACHE = [
-    './',
-    './index.html',
-    './manifest.json',
-    './icon-192.png',
-    './icon-512.png',
-    // Externe Bibliotheken auch cachen, damit PDF-Export offline geht!
+    '/Medikamente/',
+    '/Medikamente/index.html',
+    '/Medikamente/manifest.json',
+    // Externe Bibliotheken für den PDF-Export (werden ebenfalls gecacht)
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js'
 ];
 
-// 1. Installation: Cachen der Assets
+// 1. Installation: Dateien in den Cache laden
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                console.log('Cache geöffnet und Assets geladen');
+                console.log('Service Worker: Caching Assets...');
+                // Wir nutzen .addAll, um alle wichtigen Dateien zu sichern
                 return cache.addAll(ASSETS_TO_CACHE);
             })
+            .then(() => self.skipWaiting())
     );
-    self.skipWaiting();
 });
 
-// 2. Aktivierung: Alte Caches aufräumen (hilft bei Updates)
+// 2. Aktivierung: Alte Cache-Versionen löschen
 self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cache => {
                     if (cache !== CACHE_NAME) {
-                        console.log('Alter Cache gelöscht:', cache);
+                        console.log('Service Worker: Lösche alten Cache', cache);
                         return caches.delete(cache);
                     }
                 })
             );
         })
     );
-    self.clients.claim();
+    return self.clients.claim();
 });
 
-// 3. Fetch: Offline-First Strategie
+// 3. Fetch-Strategie: "Cache First, falling back to Network"
+// Das sorgt dafür, dass die App blitzschnell lädt und offline funktioniert.
 self.addEventListener('fetch', event => {
     event.respondWith(
         caches.match(event.request)
-            .then(cachedResponse => {
-                // Wenn im Cache gefunden, gib es zurück, ansonsten lade es aus dem Netz
-                return cachedResponse || fetch(event.request);
-            })
-            .catch(() => {
-                // Optionaler Fallback, falls weder Cache noch Netz verfügbar sind
-                console.log('Kein Netz und nicht im Cache:', event.request.url);
+            .then(response => {
+                // Wenn die Datei im Cache ist, gib sie zurück
+                if (response) {
+                    return response;
+                }
+                // Ansonsten lade sie aus dem Internet
+                return fetch(event.request);
             })
     );
 });
