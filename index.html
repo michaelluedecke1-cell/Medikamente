@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#f8fafc">
+    
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+
+    <title>MediPlan Pro</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #0f172a; --accent: #2563eb; --success: #059669;
+            --warning: #f59e0b; --danger: #b91c1c; --bg: #f8fafc;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; padding: env(safe-area-inset-top) 10px 10px 10px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 600px; background: white; padding: 15px; border-radius: 28px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); box-sizing: border-box; position: relative; }
+        
+        .top-nav { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; }
+        .util-btn { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.75rem; }
+
+        .sos-btn { background: var(--danger); color: white; border: none; padding: 18px; border-radius: 16px; font-weight: 900; cursor: pointer; animation: pulse 1.5s infinite; font-size: 1.3rem; width: 100%; margin-bottom: 20px; border: 2px solid #000; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        
+        .card-form { background: #f1f5f9; padding: 18px; border-radius: 22px; margin-bottom: 25px; border: 1px solid #e2e8f0; }
+        .form-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .form-group { flex: 1; min-width: 120px; display: flex; flex-direction: column; }
+        label { font-size: 0.75rem; font-weight: 700; color: #475569; margin-bottom: 5px; }
+        input, select { padding: 12px; border: 1.5px solid #cbd5e1; border-radius: 12px; font-size: 1rem; width: 100%; box-sizing: border-box; background: white; }
+        
+        .file-label { background: white; padding: 12px; border-radius: 12px; border: 2px dashed #cbd5e1; text-align: center; cursor: pointer; font-size: 0.85rem; color: #64748b; }
+        
+        .med-card { background: white; border: 1px solid #e2e8f0; border-radius: 20px; padding: 18px; margin-bottom: 15px; border-left: 8px solid var(--accent); }
+        .med-weekly { border-left-color: var(--warning); background: #fffbeb; }
+        
+        #sosOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        .sos-header { color: var(--danger); font-size: 2rem; font-weight: 900; text-align: center; margin-bottom: 20px; border-bottom: 4px solid var(--danger); padding-bottom: 10px; }
+        .sos-call { display: block; background: var(--success); color: white; text-decoration: none; text-align: center; padding: 18px; border-radius: 15px; font-weight: 900; font-size: 1.3rem; margin-bottom: 20px; border: 2px solid #000; }
+        
+        .btn { cursor: pointer; border: none; border-radius: 16px; font-weight: 700; padding: 16px; width: 100%; font-size: 1rem; }
+        .footer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        .btn-import { grid-column: span 2; background: var(--primary); color: white; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="sosOverlay">
+    <div class="sos-header">🆘 NOTFALL-INFO</div>
+    <div id="sosContactArea"></div>
+    <div id="sosExtraArea" style="background:#fef2f2; border: 2px solid var(--danger); padding:15px; border-radius:15px; margin-bottom:20px; font-size:1.2rem;"></div>
+    <div id="sosMedList"></div>
+    <button class="btn" style="background:var(--primary); color:white;" onclick="document.getElementById('sosOverlay').style.display='none'">SCHLIESSEN</button>
+</div>
+
+<div class="container">
+    <div class="top-nav">
+        <button class="util-btn" onclick="toggleFullscreen()">Vollbild ⛶</button>
+        <button class="util-btn" onclick="exitApp()">Beenden ✕</button>
+    </div>
+
+    <button class="sos-btn" onclick="openSOS()">🆘 SOS NOTFALL-INFO</button>
+    
+    <div class="card-form">
+        <input type="hidden" id="editIndex" value="-1">
+        <div class="form-row">
+            <div class="form-group" style="flex:2"><label>Medikament</label><input type="text" id="name" placeholder="Name"></div>
+            <div class="form-group"><label>Grund</label><input type="text" id="reason" placeholder="z.B. Blutdruck"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Früh</label><input type="text" id="m" placeholder="0"></div>
+            <div class="form-group"><label>Spät</label><input type="text" id="a" placeholder="0"></div>
+            <div class="form-group">
+                <label>Einheit</label>
+                <select id="unit" onchange="toggleWeekly()">
+                    <option value="Tabl.">Tabl.</option>
+                    <option value="Tropfen">Tropfen</option>
+                    <option value="Hub">Hub</option>
+                    <option value="1x wöchentlich">1x wöchentlich</option>
+                </select>
+            </div>
+        </div>
+        <div id="weeklyGroup" style="display:none; margin-bottom:12px;">
+            <label style="color:var(--warning); font-weight:bold;">Einnahmetag</label>
+            <input type="text" id="day" placeholder="Welcher Wochentag?">
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Blutgruppe</label><input type="text" id="blood" onchange="saveICE()"></div>
+            <div class="form-group"><label>Allergien</label><input type="text" id="allergy" onchange="saveICE()"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex:1.5"><label>Notfall-Kontakt</label><input type="text" id="iceN" onchange="saveICE()"></div>
+            <div class="form-group"><label>Telefon</label><input type="tel" id="iceT" onchange="saveICE()"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Beipackzettel (PDF/Bild)</label>
+                <label class="file-label" id="fileStatus" onclick="document.getElementById('medFile').click()">📄 Datei auswählen</label>
+                <input type="file" id="medFile" style="display:none" accept="application/pdf,image/*">
+            </div>
+        </div>
+        <button id="mainBtn" class="btn" style="background:var(--accent); color:white;" onclick="addItem()">Speichern & Hinzufügen</button>
+    </div>
+
+    <div id="medList"></div>
+
+    <div class="footer">
+        <button class="btn" style="background:var(--success); color:white; font-size:0.8rem;" onclick="exportPDF()">📥 PDF Export</button>
+        <button class="btn" style="background:#64748b; color:white; font-size:0.8rem;" onclick="saveBackup()">💾 Backup</button>
+        <button class="btn btn-import" style="font-size:0.8rem;" onclick="document.getElementById('fileIn').click()">📤 Backup wiederherstellen</button>
+        <input type="file" id="fileIn" style="display:none" onchange="loadBackup(event)">
+    </div>
+</div>
+
+<script>
+    let db; let meds = []; let currentFile = "";
+
+    const request = indexedDB.open("MediPlanDB_V_ULTRA", 1);
+    request.onupgradeneeded = e => {
+        db = e.target.result;
+        db.createObjectStore("meds", { keyPath: "id", autoIncrement: true });
+        db.createObjectStore("config");
+    };
+    request.onsuccess = e => { db = e.target.result; loadFromDB(); };
+
+    function toggleFullscreen() {
+        let elem = document.documentElement;
+        if (!document.fullscreenElement) {
+            if (elem.requestFullscreen) { elem.requestFullscreen(); }
+            else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); }
+        } else {
+            if (document.exitFullscreen) { document.exitFullscreen(); }
+        }
+    }
+
+    function loadFromDB() {
+        const tx = db.transaction(["meds", "config"], "readonly");
+        tx.objectStore("meds").getAll().onsuccess = e => { meds = e.target.result || []; render(); };
+        tx.objectStore("config").get("ice").onsuccess = e => {
+            const ice = e.target.result || {};
+            document.getElementById('blood').value = ice.b || '';
+            document.getElementById('allergy').value = ice.a || '';
+            document.getElementById('iceN').value = ice.n || '';
+            document.getElementById('iceT').value = ice.t || '';
+        };
+    }
+
+    function saveICE() {
+        const ice = {
+            b: document.getElementById('blood').value,
+            a: document.getElementById('allergy').value,
+            n: document.getElementById('iceN').value,
+            t: document.getElementById('iceT').value
+        };
+        const tx = db.transaction("config", "readwrite");
+        tx.objectStore("config").put(ice, "ice");
+    }
+
+    document.getElementById('medFile').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if(file) {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                currentFile = ev.target.result;
+                document.getElementById('fileStatus').innerText = "✅ " + file.name;
+                document.getElementById('fileStatus').style.background = "#dcfce7";
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function toggleWeekly() {
+        document.getElementById('weeklyGroup').style.display = document.getElementById('unit').value === "1x wöchentlich" ? "block" : "none";
+    }
+
+    function render() {
+        const list = document.getElementById('medList');
+        list.innerHTML = '';
+        meds.forEach((m, i) => {
+            const isW = m.unit === "1x wöchentlich";
+            list.innerHTML += `
+                <div class="med-card ${isW ? 'med-weekly' : ''}">
+                    <strong>${m.name}</strong> (${m.reason})<br>
+                    ${isW ? `<div style="color:var(--warning); font-weight:bold; margin:5px 0;">Jeden ${m.day}</div>` : ''}
+                    <div style="margin-top:8px;">☀️ Früh: ${m.m || 0} | 🌙 Spät: ${m.a || 0} (${m.unit})</div>
+                    <div style="margin-top:10px; display:flex; gap:10px;">
+                        ${m.file ? `<button onclick="openPDF(${i})" style="flex:2; background:#dcfce7; border:1px solid #166534; padding:8px; border-radius:10px; font-weight:bold; color:#166534;">Beipackzettel</button>` : ''}
+                        <button onclick="edit(${i})" style="flex:1; border:none; padding:8px; border-radius:10px; background:#f1f5f9;">✎</button>
+                        <button onclick="del(${i})" style="flex:1; border:none; padding:8px; border-radius:10px; background:#f1f5f9; color:red;">✕</button>
+                    </div>
+                </div>`;
+        });
+    }
+
+    function addItem() {
+        const name = document.getElementById('name').value;
+        if(!name) return alert("Bitte Name eingeben");
+        const obj = {
+            name, reason: document.getElementById('reason').value,
+            m: document.getElementById('m').value, a: document.getElementById('a').value,
+            unit: document.getElementById('unit').value, day: document.getElementById('day').value,
+            file: currentFile
+        };
+        const idx = document.getElementById('editIndex').value;
+        const tx = db.transaction("meds", "readwrite");
+        if(idx == "-1") tx.objectStore("meds").add(obj).onsuccess = () => { loadFromDB(); clearForm(); };
+        else { obj.id = meds[idx].id; tx.objectStore("meds").put(obj).onsuccess = () => { loadFromDB(); clearForm(); }; }
+    }
+
+    function exitApp() {
+        saveICE();
+        if(confirm("App beenden?")) document.body.innerHTML = "<div style='text-align:center; margin-top:50px; font-family:sans-serif;'><h1>Sicher beendet.</h1><p>Tab schließen oder Vollbild verlassen.</p></div>";
+    }
+
+    function openSOS() {
+        saveICE();
+        document.getElementById('sosOverlay').style.display = 'block';
+        const n = document.getElementById('iceN').value;
+        const t = document.getElementById('iceT').value;
+        document.getElementById('sosContactArea').innerHTML = t ? `<a href="tel:${t}" class="sos-call">📞 ${n} ANRUFEN</a>` : '';
+        document.getElementById('sosExtraArea').innerHTML = `<strong>BLUTGRUPPE:</strong> ${document.getElementById('blood').value || '-'}<br><strong>ALLERGIEN:</strong> ${document.getElementById('allergy').value || '-'}`;
+        let html = "";
+        meds.forEach(m => {
+            const isW = m.unit === "1x wöchentlich";
+            html += `<div style="border-bottom:2px solid #eee; padding:15px 0;">
+                <div style="font-size:1.5rem; font-weight:bold;">${m.name}</div>
+                <div style="color:#666;">${m.reason}</div>
+                ${isW ? `<div style="background:var(--danger); color:white; padding:5px; border-radius:8px; text-align:center; font-weight:bold; margin-top:5px;">JEDEN ${m.day.toUpperCase()}!</div>` : ''}
+                <div style="font-size:1.2rem; font-weight:bold; margin-top:8px;">Dosis: ${m.m} (M) - ${m.a} (A)</div>
+            </div>`;
+        });
+        document.getElementById('sosMedList').innerHTML = html;
+    }
+
+    function edit(i) {
+        const m = meds[i];
+        document.getElementById('name').value = m.name; document.getElementById('reason').value = m.reason;
+        document.getElementById('m').value = m.m; document.getElementById('a').value = m.a;
+        document.getElementById('unit').value = m.unit; document.getElementById('day').value = m.day;
+        currentFile = m.file || ""; document.getElementById('editIndex').value = i;
+        document.getElementById('mainBtn').innerText = "Änderung speichern"; toggleWeekly(); window.scrollTo(0,0);
+    }
+
+    function del(i) { if(confirm("Löschen?")) db.transaction("meds", "readwrite").objectStore("meds").delete(meds[i].id).onsuccess = () => loadFromDB(); }
+
+    function clearForm() {
+        ['name','reason','m','a','day'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('editIndex').value = "-1"; currentFile = ""; 
+        document.getElementById('fileStatus').innerText = "📄 Datei auswählen";
+        document.getElementById('fileStatus').style.background = "white";
+        document.getElementById('mainBtn').innerText = "Speichern & Hinzufügen"; toggleWeekly();
+    }
+
+    function openPDF(i) {
+        const dataUrl = meds[i].file;
+        const bin = atob(dataUrl.split(',')[1]);
+        const arr = new Uint8Array(bin.length);
+        for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+        window.open(URL.createObjectURL(new Blob([arr], {type: dataUrl.split(';')[0].split(':')[1]})), '_blank');
+    }
+
+    function exportPDF() {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF();
+        doc.text("Medikationsplan", 14, 20);
+        const rows = meds.map(m => [m.name, m.reason, m.m, m.a, m.unit === "1x wöchentlich" ? m.day : m.unit]);
+        doc.autoTable({ startY: 30, head: [['Name', 'Grund', 'Früh', 'Spät', 'Einheit']], body: rows });
+        doc.save("MediPlan.pdf");
+    }
+
+    function saveBackup() {
+        const tx = db.transaction(["meds", "config"], "readonly");
+        tx.objectStore("meds").getAll().onsuccess = e1 => {
+            tx.objectStore("config").get("ice").onsuccess = e2 => {
+                const data = { meds: e1.target.result, ice: e2.target.result };
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: "application/json"}));
+                a.download = "medi_backup.json"; a.click();
+            };
+        };
+    }
+
+    function loadBackup(event) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const d = JSON.parse(e.target.result);
+            const tx = db.transaction(["meds", "config"], "readwrite");
+            tx.objectStore("meds").clear();
+            d.meds.forEach(m => { delete m.id; tx.objectStore("meds").add(m); });
+            tx.objectStore("config").put(d.ice, "ice");
+            location.reload();
+        };
+        reader.readAsText(event.target.files[0]);
+    }
+</script>
+
+<script>
+    // Service Worker Registrierung für PWA
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(registration => {
+                    console.log('ServiceWorker erfolgreich registriert. Scope:', registration.scope);
+                })
+                .catch(error => {
+                    console.log('ServiceWorker Registrierung fehlgeschlagen:', error);
+                });
+        });
+    }
+</script>
+
+</body>
+</html>
